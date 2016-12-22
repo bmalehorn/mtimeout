@@ -11,7 +11,7 @@
 #include <stdint.h>
 
 static int usage(void);
-static void sigalarm_handler(int);
+static void signal_handler(int);
 
 static char *file;
 static int timeout;
@@ -35,18 +35,48 @@ int main(int argc, char **argv)
     }
 
     static struct sigaction act = {
-        .sa_handler = sigalarm_handler,
+        .sa_handler = signal_handler,
         // .sa_sigaction unset, may be union with .sa_handler
         .sa_mask = 0,
         .sa_flags = 0,
         .sa_restorer = NULL,
     };
-    if (sigaction(SIGALRM, &act, NULL) != 0) {
-        perror("sigaction");
-        return 3;
-    }
 
-    sigalarm_handler(0);
+    // 1. SIGALRM is used internally by mtimeout
+    // 2. most other signals are forwarded (SIGINT, SIGTERM, etc.)
+    sigaction(SIGHUP, &act, NULL);
+    sigaction(SIGINT, &act, NULL);
+    sigaction(SIGQUIT, &act, NULL);
+    sigaction(SIGILL, &act, NULL);
+    sigaction(SIGTRAP, &act, NULL);
+    sigaction(SIGABRT, &act, NULL);
+    sigaction(SIGBUS, &act, NULL);
+    sigaction(SIGFPE, &act, NULL);
+    /* SIGKILL - cannot foward */
+    sigaction(SIGUSR1, &act, NULL);
+    /* SIGSEGV - our fault */
+    sigaction(SIGUSR2, &act, NULL);
+    sigaction(SIGPIPE, &act, NULL);
+    sigaction(SIGALRM, &act, NULL);
+    sigaction(SIGTERM, &act, NULL);
+    sigaction(SIGSTKFLT, &act, NULL);
+    /* SIGCHLD - <cmd> exitted */
+    sigaction(SIGCONT, &act, NULL);
+    /* SIGSTOP - cannot forward */
+    sigaction(SIGTSTP, &act, NULL);
+    sigaction(SIGTTIN, &act, NULL);
+    sigaction(SIGTTOU, &act, NULL);
+    sigaction(SIGURG, &act, NULL);
+    sigaction(SIGXCPU, &act, NULL);
+    sigaction(SIGXFSZ, &act, NULL);
+    sigaction(SIGVTALRM, &act, NULL);
+    sigaction(SIGPROF, &act, NULL);
+    sigaction(SIGWINCH, &act, NULL);
+    sigaction(SIGPOLL, &act, NULL);
+    sigaction(SIGPWR, &act, NULL);
+    sigaction(SIGSYS, &act, NULL);
+
+    signal_handler(SIGALRM);
     alarm(1);
 
     int status;
@@ -67,25 +97,32 @@ static inline int usage(void)
     return 1;
 }
 
-static void sigalarm_handler(int sig)
+static void signal_handler(int sig)
 {
     static time_t prev_mtime = 0;
     static int ticks_without_update = 0;
 
-    (void)sig;
+    if (sig == SIGALRM) {
+        alarm(1);
 
-    alarm(1);
+        struct stat st;
+        if (stat(file, &st) < 0 || prev_mtime == st.st_mtime) {
+            ticks_without_update++;
+        } else {
+            ticks_without_update = 0;
+            prev_mtime = st.st_mtime;
+        }
 
-    struct stat st;
-    if (stat(file, &st) < 0 || prev_mtime == st.st_mtime) {
-        ticks_without_update++;
+        if (ticks_without_update >= timeout) {
+            fprintf(stderr, "mtimeout: timed out, killing process\n");
+            kill(pid, SIGTERM);
+        }
+        
     } else {
-        ticks_without_update = 0;
-        prev_mtime = st.st_mtime;
+        // forward to child
+        kill(pid, sig);
     }
 
-    if (ticks_without_update >= timeout) {
-        fprintf(stderr, "mtimeout: timed out, killing process\n");
-        kill(pid, SIGTERM);
-    }
+    
+
 }
