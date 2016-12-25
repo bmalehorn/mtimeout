@@ -1,14 +1,14 @@
 #define _POSIX_C_SOURCE 1 /* sigaction */
 
-#include <stdio.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <unistd.h>
-#include <signal.h>
-#include <sys/wait.h>
 #include <errno.h>
-#include <string.h>
+#include <signal.h>
 #include <stdint.h>
+#include <stdio.h>
+#include <string.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <unistd.h>
 
 static int usage(void);
 static void signal_handler(int);
@@ -17,11 +17,9 @@ static char *file;
 static int timeout;
 static int pid;
 
-int main(int argc, char **argv)
-{
+int main(int argc, char **argv) {
     struct stat st;
-    if (argc < 4 ||
-        stat(argv[1], &st) != 0 ||
+    if (argc < 4 || stat(argv[1], &st) != 0 ||
         sscanf(argv[2], "%d", &timeout) != 1) {
         return usage();
     }
@@ -91,14 +89,12 @@ int main(int argc, char **argv)
     return WEXITSTATUS(status);
 }
 
-static inline int usage(void)
-{
+static inline int usage(void) {
     fprintf(stderr, "Usage: mtimeout <file> <timeout> <cmd> [<args> ... ]\n");
     return 1;
 }
 
-static void signal_handler(int sig)
-{
+static void signal_handler(int sig) {
     static time_t prev_mtime = 0;
     static int ticks_without_update = 0;
 
@@ -117,12 +113,9 @@ static void signal_handler(int sig)
             fprintf(stderr, "mtimeout: timed out, killing process\n");
             kill(pid, SIGTERM);
         }
-        
+
     } else {
         // forward to child
         kill(pid, sig);
     }
-
-    
-
 }
